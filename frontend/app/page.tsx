@@ -6,7 +6,7 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
 
-  // call your FastAPI backend
+  // call FastAPI backend
   const searchSongs = async () => {
     if (!query) return;
 
@@ -24,7 +24,7 @@ export default function Home() {
       {/* SEARCH BAR */}
       <input
         type="text"
-        placeholder="Search for a song..."
+        placeholder="Search for a song"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         style={{
