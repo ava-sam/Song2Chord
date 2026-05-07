@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { createClient } from "../lib/supabase/client";
 
 type Song = {
   title: string;
   artist: string;
   albumArt: string | null;
 };
-
 
 export default function Home() {
   // stores what the user types into the Spotify search bar and results
@@ -16,6 +16,7 @@ export default function Home() {
   const [fileName, setFileName] = useState("");
   const [audioURL, setAudioURL] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const supabase = createClient();
 
   // call FastAPI backend
   const searchSongs = async () => {
@@ -63,6 +64,22 @@ export default function Home() {
     }, 100);
   };
 
+    // sign-in with google
+    const signInWithGoogle = async () => {
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: "http://localhost:3000",
+        },
+      });
+    };
+
+    // sign-out of google
+    const signOut = async () => {
+      await supabase.auth.signOut();
+      window.location.reload();
+    };
+
   return (
     <main
       style={{
@@ -71,14 +88,24 @@ export default function Home() {
         fontFamily: "system-ui, sans-serif",
       }}
     >
-      {/* Page title */}
+      {/* page title */}
       <h1>Song2Chord</h1>
 
-      {/* Spotify search section */}
+      <div style={{ marginTop: "20px", marginBottom: "30px" }}>
+        <button onClick={signInWithGoogle}>
+          Sign in with Google
+        </button>
+
+        <button onClick={signOut} style={{ marginLeft: "10px" }}>
+          Sign out
+        </button>
+      </div>
+
+      {/* spotify search section */}
       <section style={{ marginTop: "30px" }}>
         <h2>Search Spotify</h2>
 
-        {/* Search input */}
+        {/* search input */}
         <input
           type="text"
           placeholder="Search for a song..."
@@ -91,15 +118,15 @@ export default function Home() {
           }}
         />
 
-        {/* Search button */}
+        {/* search button */}
         <button onClick={searchSongs}>Search</button>
 
-        {/* Cleaner Spotify sign-in message for later */}
+        {/* Spotify sign-in message for later */}
         <p style={{ marginTop: "10px", color: "#666" }}>
           Sign in with Spotify to enable audio previews.
         </p>
 
-        {/* Spotify results */}
+        {/* spotify results */}
         <div style={{ marginTop: "20px" }}>
           {results.map((song, index) => (
             <div
@@ -110,7 +137,7 @@ export default function Home() {
                 marginBottom: "15px",
               }}
             >
-              {/* Album image */}
+              {/* album image */}
               {song.albumArt && (
                 <img
                   src={song.albumArt}
@@ -124,7 +151,7 @@ export default function Home() {
                 />
               )}
 
-              {/* Song info */}
+              {/* song info */}
               <div>
                 <div>
                   <strong>{song.title}</strong>
@@ -136,7 +163,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Upload section */}
+      {/* upload section */}
       <section style={{ marginTop: "50px" }}>
         <h2>Upload Your Own Audio</h2>
 
@@ -144,21 +171,21 @@ export default function Home() {
           Upload an .mp3 or .wav file to play it instantly.
         </p>
 
-        {/* File input */}
+        {/* file input */}
         <input
           type="file"
           accept=".mp3,.wav,audio/mpeg,audio/wav"
           onChange={handleFileUpload}
         />
 
-        {/* Show uploaded file name */}
+        {/* show uploaded file name */}
         {fileName && (
           <p style={{ marginTop: "15px" }}>
             Now playing: <strong>{fileName}</strong>
           </p>
         )}
 
-        {/* Audio player */}
+        {/* audio player */}
         {audioURL && (
           <div style={{ marginTop: "20px" }}>
             <audio ref={audioRef} src={audioURL} controls />
