@@ -33,11 +33,11 @@ export default function Home() {
   };
   
   // deal with .mp3 and .wav uploads
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+
     if (!file) return;
 
-    // only allow mp3 and wav
     const isAllowedAudio =
       file.type === "audio/mpeg" ||
       file.type === "audio/wav" ||
@@ -49,21 +49,46 @@ export default function Home() {
       return;
     }
 
-    // create local URL for instant playback
-    const url = URL.createObjectURL(file);
-
-    // save audio URL and file name
-    setAudioURL(url);
+    // play instantly in browser
+    const localUrl = URL.createObjectURL(file);
+    setAudioURL(localUrl);
     setFileName(file.name);
 
-    // play immediately
     setTimeout(() => {
-      if (audioRef.current) {
-        audioRef.current.play();
-      }
+      audioRef.current?.play();
     }, 100);
-  };
 
+    // check if user is signed in
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      alert("Please sign in with Google to save uploads.");
+      return;
+    }
+
+    // unique file path in Supabase
+    const fileExt = file.name.split(".").pop();
+    const filePath = `${user.id}/${Date.now()}.${fileExt}`;
+
+    // upload file to Supabase Storage
+    const { error } = await supabase.storage
+      .from("audio-uploads")
+      .upload(filePath, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+
+    if (error) {
+      console.error(error);
+      alert("Upload failed.");
+      return;
+    }
+
+    alert("Audio saved to Supabase!");
+  };
+  
     // sign-in with google
     const signInWithGoogle = async () => {
       await supabase.auth.signInWithOAuth({
