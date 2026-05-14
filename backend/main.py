@@ -1,6 +1,10 @@
 from fastapi import FastAPI, Query 
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from fastapi import UploadFile, File
+import librosa
+import numpy as np
+import tempfile
 import os
 import requests
 import base64
@@ -89,3 +93,51 @@ def search_song(q: str = Query(...)):
 
     # send the cleaned song results back to the frontend
     return results
+
+    @app.post("/analyze-chords")
+    async def analy
+    e_chords(file: UploadFile = File(...)):
+
+    # Save uploaded file temporarily
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp:
+        contents = await file.read()
+        temp.write(contents)
+        temp_path = temp.name
+
+    # Load audio with librosa
+    y, sr = librosa.load(temp_path)
+
+    # Extract chroma features
+    chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
+
+    # Basic chord labels
+    chord_labels = [
+        "C", "C#", "D", "D#", "E", "F",
+        "F#", "G", "G#", "A", "A#", "B"
+    ]
+
+    chords = []
+
+    # Analyze chunks over time
+    for i in range(chroma.shape[1]):
+
+        # Get strongest pitch class
+        note_index = np.argmax(chroma[:, i])
+
+        chord = chord_labels[note_index]
+
+        chords.append(chord)
+
+    # Remove duplicate consecutive chords
+    simplified = []
+
+    for chord in chords:
+        if not simplified or simplified[-1] != chord:
+            simplified.append(chord)
+
+    # Limit result size
+    simplified = simplified[:20]
+
+    return {
+        "chords": simplified
+    }
