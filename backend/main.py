@@ -94,50 +94,34 @@ def search_song(q: str = Query(...)):
     # send the cleaned song results back to the frontend
     return results
 
-    @app.post("/analyze-chords")
-    async def analy
-    e_chords(file: UploadFile = File(...)):
 
-    # Save uploaded file temporarily
+@app.post("/analyze-chords")
+async def analyze_chords(file: UploadFile = File(...)):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp:
         contents = await file.read()
         temp.write(contents)
         temp_path = temp.name
 
-    # Load audio with librosa
     y, sr = librosa.load(temp_path)
-
-    # Extract chroma features
     chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
 
-    # Basic chord labels
     chord_labels = [
         "C", "C#", "D", "D#", "E", "F",
         "F#", "G", "G#", "A", "A#", "B"
     ]
 
     chords = []
-
-    # Analyze chunks over time
     for i in range(chroma.shape[1]):
-
-        # Get strongest pitch class
         note_index = np.argmax(chroma[:, i])
+        chords.append(chord_labels[note_index])
 
-        chord = chord_labels[note_index]
-
-        chords.append(chord)
-
-    # Remove duplicate consecutive chords
     simplified = []
-
     for chord in chords:
         if not simplified or simplified[-1] != chord:
             simplified.append(chord)
 
-    # Limit result size
     simplified = simplified[:20]
 
-    return {
-        "chords": simplified
-    }
+    os.unlink(temp_path)
+
+    return {"chords": simplified}

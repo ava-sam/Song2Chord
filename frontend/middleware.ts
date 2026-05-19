@@ -34,9 +34,12 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isLoginPage = request.nextUrl.pathname === "/";
+  const pathname = request.nextUrl.pathname;
 
-  if (!user && !isLoginPage) {
+  const isLoginPage = pathname === "/";
+  const isAuthCallback = pathname.startsWith("/auth/callback");
+
+  if (!user && !isLoginPage && !isAuthCallback) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 

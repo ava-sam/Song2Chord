@@ -7,14 +7,13 @@ export default function LoginPage() {
   // Create Supabase browser client
   const supabase = createClient();
 
-    const res = await fetch(
   // Starts Google OAuth login flow
   const signInWithGoogle = async () => {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         // After login, send user to the private search/upload page
-        redirectTo: "http://localhost:3000/search",
+        redirectTo: "http://localhost:3000/auth/callback",
       },
     });
   };
@@ -49,7 +48,7 @@ export default function LoginPage() {
 
         {/* App description */}
         <p style={{ color: "#666", marginBottom: "28px" }}>
-          Sign in to search songs, upload audio, save your library, and generate
+          Sign in to search songs, upload audio, savew your library, and generate
           chord sheets.
         </p>
 
