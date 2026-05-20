@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import NavBar from "../../components/navBar";
+import { createClient } from "../../lib/supabase/client";
 
 type ChordEntry = { time: number; chord: string };
 type AnalysisResult = { filename: string; chords: ChordEntry[] };
@@ -20,16 +21,26 @@ export default function SearchPage() {
     setError(null);
     setResult(null);
 
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
+      // 1. Upload to Supabase Storage
+      const supabase = createClient();
+      const path = `${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from("audio-uploads")
+        .upload(path, file);
+
+      if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
+
+      // 2. Send the file to the backend for chord analysis
+      const formData = new FormData();
+      formData.append("file", file);
+
       const res = await fetch("http://localhost:8000/analyze-chords", {
         method: "POST",
         body: formData,
       });
 
-      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      if (!res.ok) throw new Error(`Analyzer error: ${res.status}`);
 
       const data: AnalysisResult = await res.json();
       setResult(data);
