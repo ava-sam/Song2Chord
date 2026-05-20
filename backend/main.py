@@ -95,33 +95,132 @@ def search_song(q: str = Query(...)):
     return results
 
 
+# 12 musical note names
+NOTE_NAMES = [
+    "C", "C#", "D", "D#", "E", "F",
+    "F#", "G", "G#", "A", "A#", "B"
+]
+
+# Build simple major/minor chord templates
+def build_chord_templates():
+    templates = {}
+
+    for root_index, root_name in enumerate(NOTE_NAMES):
+
+        # Major chord template
+        major = np.zeros(12)
+        major[root_index] = 1
+        major[(root_index + 4) % 12] = 1
+        major[(root_index + 7) % 12] = 1
+
+        templates[f"{root_name} major"] = major
+
+        # Minor chord template
+        minor = np.zeros(12)
+        minor[root_index] = 1
+        minor[(root_index + 3) % 12] = 1
+        minor[(root_index + 7) % 12] = 1
+
+        templates[f"{root_name} minor"] = minor
+
+    return templates
+
+
+# Global chord templates
+CHORD_TEMPLATES = build_chord_templates()
+
+
+# Detect closest matching chord
+def detect_chord(chroma_vector):
+
+    if np.sum(chroma_vector) == 0:
+        return "Unknown"
+
+    normalized_chroma = chroma_vector / np.linalg.norm(chroma_vector)
+
+    best_chord = "Unknown"
+    best_score = -1
+
+    for chord_name, template in CHORD_TEMPLATES.items():
+
+        normalized_template = template / np.linalg.norm(template)
+
+        # Similarity score
+        score = np.dot(normalized_chroma, normalized_template)
+
+        if score > best_score:
+            best_score = score
+            best_chord = chord_name
+
+    return best_chord
+
+
+# Audio → chord analysis endpoint
 @app.post("/analyze-chords")
 async def analyze_chords(file: UploadFile = File(...)):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp:
+
+    # Preserve uploaded file extension
+    suffix = os.path.splitext(file.filename or "")[1] or ".wav"
+
+    # Save uploaded file temporarily
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+
         contents = await file.read()
-        temp.write(contents)
-        temp_path = temp.name
+        temp_file.write(contents)
 
-    y, sr = librosa.load(temp_path)
-    chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
+        temp_path = temp_file.name
 
-    chord_labels = [
-        "C", "C#", "D", "D#", "E", "F",
-        "F#", "G", "G#", "A", "A#", "B"
-    ]
+    try:
 
-    chords = []
-    for i in range(chroma.shape[1]):
-        note_index = np.argmax(chroma[:, i])
-        chords.append(chord_labels[note_index])
+        # Load audio using librosa
+        y, sr = librosa.load(temp_path, sr=None)
 
-    simplified = []
-    for chord in chords:
-        if not simplified or simplified[-1] != chord:
-            simplified.append(chord)
+        # Detect beat frames
+        tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
 
-    simplified = simplified[:20]
+        # Extract chroma features
+        chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
 
-    os.unlink(temp_path)
+        # Fallback if beat tracking fails
+        if len(beat_frames) < 2:
+            beat_frames = np.arange(0, chroma.shape[1], 20)
 
-    return {"chords": simplified}
+        chord_sheet = []
+        previous_chord = None
+
+        for beat_frame in beat_frames:
+
+            frame_index = int(beat_frame)
+
+            if frame_index >= chroma.shape[1]:
+                continue
+
+            chroma_vector = chroma[:, frame_index]
+
+            # Detect chord
+            chord = detect_chord(chroma_vector)
+
+            # Remove repeated consecutive chords
+            if chord != previous_chord:
+
+                time_seconds = librosa.frames_to_time(
+                    frame_index,
+                    sr=sr,
+                    hop_length=512,
+                )
+
+                chord_sheet.append({
+                    "time": round(float(time_seconds), 2),
+                    "chord": chord,
+                })
+
+                previous_chord = chord
+
+        return {
+            "filename": file.filename,
+            "chords": chord_sheet[:40],
+        }
+
+    finally:
+        # Delete temporary file
+        os.remove(temp_path)
