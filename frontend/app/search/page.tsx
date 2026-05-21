@@ -112,6 +112,16 @@ export default function SearchPage() {
 
       const data: AnalysisResult = await res.json();
       setResult(data);
+
+      // Save to library
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("songs").insert({
+          user_id: user.id,
+          filename: data.filename,
+          chords: data.chords,
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
