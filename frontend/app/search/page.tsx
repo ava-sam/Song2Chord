@@ -1,11 +1,48 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import NavBar from "../../components/navBar";
 import { createClient } from "../../lib/supabase/client";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const guitarDb = require("@tombatossals/chords-db/lib/guitar.json");
+
+const ChordDiagram = dynamic(
+  () => import("@tombatossals/react-chords/lib/Chord"),
+  { ssr: false }
+);
 
 type ChordEntry = { time: number; chord: string };
 type AnalysisResult = { filename: string; chords: ChordEntry[] };
+type ChordPosition = { frets: number[]; fingers: number[]; baseFret: number; barres: number[] };
+
+const GUITAR_INSTRUMENT = {
+  strings: 6,
+  fretsOnChord: 4,
+  name: "Guitar",
+  tunings: { standard: ["E", "A", "D", "G", "B", "E"] },
+};
+
+// Map backend note names to chords-db keys (uses enharmonic equivalents)
+const NOTE_MAP: Record<string, string> = {
+  "C": "C", "C#": "Csharp", "D": "D", "D#": "Eb",
+  "E": "E", "F": "F", "F#": "Fsharp", "G": "G",
+  "G#": "Ab", "A": "A", "A#": "Bb", "B": "B",
+};
+
+function lookupChordPosition(chordName: string): ChordPosition | null {
+  if (!chordName || chordName === "Unknown") return null;
+  const spaceIdx = chordName.indexOf(" ");
+  if (spaceIdx === -1) return null;
+  const root = chordName.slice(0, spaceIdx);
+  const suffix = chordName.slice(spaceIdx + 1);
+  const key = NOTE_MAP[root];
+  if (!key) return null;
+  const entries: { suffix: string; positions: ChordPosition[] }[] = guitarDb.chords[key];
+  if (!entries) return null;
+  const entry = entries.find((c) => c.suffix === suffix);
+  return entry?.positions?.[0] ?? null;
+}
 
 export default function SearchPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -49,13 +86,18 @@ export default function SearchPage() {
     }
   }
 
+  // Unique chords in order of first appearance, excluding unknowns
+  const uniqueChords = result
+    ? [...new Set(result.chords.map((e) => e.chord).filter((c) => c !== "Unknown"))]
+    : [];
+
   const ready = !!file && !loading;
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#121212", fontFamily: "system-ui, sans-serif" }}>
       <NavBar />
 
-      <main style={{ padding: "40px 32px", maxWidth: "680px" }}>
+      <main style={{ padding: "40px 32px", maxWidth: "800px" }}>
         <h1 style={{ color: "#ffffff", fontSize: "24px", fontWeight: 700, marginBottom: "8px" }}>
           Chord Analyzer
         </h1>
@@ -76,7 +118,6 @@ export default function SearchPage() {
             borderRadius: "8px",
             cursor: "pointer",
             marginBottom: "20px",
-            transition: "border-color 0.2s",
           }}>
             <span style={{ fontSize: "32px" }}>🎵</span>
             <span style={{ color: "#b3b3b3", fontSize: "14px" }}>
@@ -104,7 +145,6 @@ export default function SearchPage() {
               textTransform: "uppercase",
               letterSpacing: "1.4px",
               cursor: ready ? "pointer" : "not-allowed",
-              transition: "background-color 0.2s, color 0.2s",
             }}
           >
             {loading ? "Analyzing..." : "Analyze Chords"}
@@ -116,43 +156,80 @@ export default function SearchPage() {
         )}
 
         {result && (
-          <section style={{ marginTop: "40px" }}>
-            <h2 style={{
-              color: "#ffffff",
-              fontSize: "18px",
-              fontWeight: 600,
-              marginBottom: "16px",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}>
-              {result.filename}
-            </h2>
+          <>
+            <section style={{ marginTop: "40px" }}>
+              <h2 style={{ color: "#ffffff", fontSize: "18px", fontWeight: 600, marginBottom: "20px" }}>
+                Chords in this song
+              </h2>
 
-            <div style={{
-              backgroundColor: "#181818",
-              borderRadius: "8px",
-              overflow: "hidden",
-              boxShadow: "rgba(0,0,0,0.3) 0px 8px 8px",
-            }}>
-              <table style={{ borderCollapse: "collapse", width: "100%" }}>
-                <thead>
-                  <tr style={{ backgroundColor: "#1f1f1f" }}>
-                    <th style={thStyle}>Time (s)</th>
-                    <th style={thStyle}>Chord</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.chords.map((entry, i) => (
-                    <tr key={i} style={{ backgroundColor: i % 2 === 0 ? "#181818" : "#1f1f1f" }}>
-                      <td style={tdStyle}>{entry.time}</td>
-                      <td style={{ ...tdStyle, color: "#1ed760", fontWeight: 600 }}>{entry.chord}</td>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))",
+                gap: "16px",
+              }}>
+                {uniqueChords.map((chordName) => {
+                  const position = lookupChordPosition(chordName);
+                  return (
+                    <div key={chordName} style={{
+                      backgroundColor: "#181818",
+                      borderRadius: "8px",
+                      padding: "12px 8px 8px",
+                      textAlign: "center",
+                      boxShadow: "rgba(0,0,0,0.3) 0px 8px 8px",
+                    }}>
+                      <p style={{
+                        color: "#1ed760",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        marginBottom: "8px",
+                        textTransform: "uppercase",
+                        letterSpacing: "1px",
+                      }}>
+                        {chordName}
+                      </p>
+                      {position ? (
+                        <ChordDiagram chord={position} instrument={GUITAR_INSTRUMENT} lite={false} />
+                      ) : (
+                        <p style={{ color: "#4d4d4d", fontSize: "11px", padding: "16px 0" }}>
+                          No diagram
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section style={{ marginTop: "40px" }}>
+              <h2 style={{ color: "#ffffff", fontSize: "18px", fontWeight: 600, marginBottom: "16px" }}>
+                {result.filename}
+              </h2>
+
+              <div style={{
+                backgroundColor: "#181818",
+                borderRadius: "8px",
+                overflow: "hidden",
+                boxShadow: "rgba(0,0,0,0.3) 0px 8px 8px",
+              }}>
+                <table style={{ borderCollapse: "collapse", width: "100%" }}>
+                  <thead>
+                    <tr style={{ backgroundColor: "#1f1f1f" }}>
+                      <th style={thStyle}>Time (s)</th>
+                      <th style={thStyle}>Chord</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+                  </thead>
+                  <tbody>
+                    {result.chords.map((entry, i) => (
+                      <tr key={i} style={{ backgroundColor: i % 2 === 0 ? "#181818" : "#1f1f1f" }}>
+                        <td style={tdStyle}>{entry.time}</td>
+                        <td style={{ ...tdStyle, color: "#1ed760", fontWeight: 600 }}>{entry.chord}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </>
         )}
       </main>
     </div>
