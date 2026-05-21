@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import NavBar from "../../components/navBar";
 import { createClient } from "../../lib/supabase/client";
@@ -23,7 +23,6 @@ const GUITAR_INSTRUMENT = {
   tunings: { standard: ["E", "A", "D", "G", "B", "E"] },
 };
 
-// Map backend note names to chords-db keys (uses enharmonic equivalents)
 const NOTE_MAP: Record<string, string> = {
   "C": "C", "C#": "Csharp", "D": "D", "D#": "Eb",
   "E": "E", "F": "F", "F#": "Fsharp", "G": "G",
@@ -44,11 +43,44 @@ function lookupChordPosition(chordName: string): ChordPosition | null {
   return entry?.positions?.[0] ?? null;
 }
 
+function getActiveIndex(chords: ChordEntry[], time: number): number {
+  let idx = -1;
+  for (let i = 0; i < chords.length; i++) {
+    if (chords[i].time <= time) idx = i;
+    else break;
+  }
+  return idx;
+}
+
 export default function SearchPage() {
   const [file, setFile] = useState<File | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const activeRowRef = useRef<HTMLTableRowElement>(null);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files?.[0] ?? null;
+    setFile(selected);
+    setResult(null);
+    setCurrentTime(0);
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioUrl(selected ? URL.createObjectURL(selected) : null);
+  }
+
+  // Clean up object URL on unmount
+  useEffect(() => {
+    return () => { if (audioUrl) URL.revokeObjectURL(audioUrl); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Scroll active chord row into view
+  useEffect(() => {
+    activeRowRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [currentTime]);
 
   async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
@@ -57,6 +89,7 @@ export default function SearchPage() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setCurrentTime(0);
 
     try {
       const supabase = createClient();
@@ -86,11 +119,13 @@ export default function SearchPage() {
     }
   }
 
-  // Unique chords in order of first appearance, excluding unknowns
   const uniqueChords = result
     ? [...new Set(result.chords.map((e) => e.chord).filter((c) => c !== "Unknown"))]
     : [];
 
+  const activeIdx = result ? getActiveIndex(result.chords, currentTime) : -1;
+  const activeChord = activeIdx >= 0 ? result!.chords[activeIdx].chord : null;
+  const activePosition = activeChord ? lookupChordPosition(activeChord) : null;
   const ready = !!file && !loading;
 
   return (
@@ -126,10 +161,26 @@ export default function SearchPage() {
             <input
               type="file"
               accept="audio/*"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              onChange={handleFileChange}
               style={{ display: "none" }}
             />
           </label>
+
+          {/* Audio player — shown as soon as a file is chosen */}
+          {audioUrl && (
+            <audio
+              ref={audioRef}
+              src={audioUrl}
+              controls
+              onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+              style={{
+                width: "100%",
+                marginBottom: "20px",
+                borderRadius: "9999px",
+                accentColor: "#1ed760",
+              }}
+            />
+          )}
 
           <button
             type="submit"
@@ -157,11 +208,39 @@ export default function SearchPage() {
 
         {result && (
           <>
+            {/* Now playing — live chord + diagram while audio plays */}
+            {activeChord && (
+              <section style={{
+                marginTop: "40px",
+                backgroundColor: "#181818",
+                borderRadius: "8px",
+                padding: "24px",
+                display: "flex",
+                alignItems: "center",
+                gap: "24px",
+                boxShadow: "rgba(0,0,0,0.5) 0px 8px 24px",
+              }}>
+                <div style={{ flex: 1 }}>
+                  <p style={{ color: "#b3b3b3", fontSize: "12px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "1.4px", marginBottom: "8px" }}>
+                    Now playing
+                  </p>
+                  <p style={{ color: "#1ed760", fontSize: "36px", fontWeight: 700 }}>
+                    {activeChord}
+                  </p>
+                </div>
+                {activePosition && (
+                  <div style={{ width: "100px", flexShrink: 0 }}>
+                    <ChordDiagram chord={activePosition} instrument={GUITAR_INSTRUMENT} lite={false} />
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Unique chord diagrams */}
             <section style={{ marginTop: "40px" }}>
               <h2 style={{ color: "#ffffff", fontSize: "18px", fontWeight: 600, marginBottom: "20px" }}>
                 Chords in this song
               </h2>
-
               <div style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))",
@@ -169,13 +248,17 @@ export default function SearchPage() {
               }}>
                 {uniqueChords.map((chordName) => {
                   const position = lookupChordPosition(chordName);
+                  const isActive = chordName === activeChord;
                   return (
                     <div key={chordName} style={{
-                      backgroundColor: "#181818",
+                      backgroundColor: isActive ? "#1f1f1f" : "#181818",
                       borderRadius: "8px",
                       padding: "12px 8px 8px",
                       textAlign: "center",
-                      boxShadow: "rgba(0,0,0,0.3) 0px 8px 8px",
+                      boxShadow: isActive
+                        ? "rgba(30,215,96,0.2) 0px 0px 0px 2px, rgba(0,0,0,0.3) 0px 8px 8px"
+                        : "rgba(0,0,0,0.3) 0px 8px 8px",
+                      transition: "box-shadow 0.15s",
                     }}>
                       <p style={{
                         color: "#1ed760",
@@ -200,31 +283,49 @@ export default function SearchPage() {
               </div>
             </section>
 
+            {/* Chord timeline */}
             <section style={{ marginTop: "40px" }}>
               <h2 style={{ color: "#ffffff", fontSize: "18px", fontWeight: 600, marginBottom: "16px" }}>
                 {result.filename}
               </h2>
-
               <div style={{
                 backgroundColor: "#181818",
                 borderRadius: "8px",
                 overflow: "hidden",
+                maxHeight: "360px",
+                overflowY: "auto",
                 boxShadow: "rgba(0,0,0,0.3) 0px 8px 8px",
               }}>
                 <table style={{ borderCollapse: "collapse", width: "100%" }}>
-                  <thead>
+                  <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
                     <tr style={{ backgroundColor: "#1f1f1f" }}>
                       <th style={thStyle}>Time (s)</th>
                       <th style={thStyle}>Chord</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {result.chords.map((entry, i) => (
-                      <tr key={i} style={{ backgroundColor: i % 2 === 0 ? "#181818" : "#1f1f1f" }}>
-                        <td style={tdStyle}>{entry.time}</td>
-                        <td style={{ ...tdStyle, color: "#1ed760", fontWeight: 600 }}>{entry.chord}</td>
-                      </tr>
-                    ))}
+                    {result.chords.map((entry, i) => {
+                      const isActive = i === activeIdx;
+                      return (
+                        <tr
+                          key={i}
+                          ref={isActive ? activeRowRef : null}
+                          style={{
+                            backgroundColor: isActive ? "#1f3d29" : i % 2 === 0 ? "#181818" : "#1f1f1f",
+                            transition: "background-color 0.2s",
+                          }}
+                        >
+                          <td style={tdStyle}>{entry.time}</td>
+                          <td style={{
+                            ...tdStyle,
+                            color: isActive ? "#1ed760" : "#ffffff",
+                            fontWeight: isActive ? 700 : 600,
+                          }}>
+                            {entry.chord}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
