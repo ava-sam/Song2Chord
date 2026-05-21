@@ -1,39 +1,64 @@
 "use client";
 
-import Link from "next/link"; // Next.js navigation links
-import { createClient } from "../lib/supabase/client"; // supabase client for auth
-import { useRouter } from "next/navigation"; // redirects after log out
+import Link from "next/link";
+import { createClient } from "../lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 export default function NavBar() {
-    // for sign out and redirecting to home page
-    const router = useRouter();
-    const supabase = createClient();
+  const router = useRouter();
+  const supabase = createClient();
 
-    // sign out function that calls supabase auth and redirects to home page
-    const signOut = async () => {
-        await supabase.auth.signOut();
-        router.push("/");
-    };
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    router.push("/");
+  };
+
   return (
-    // top navigation bar
     <nav style={{
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
-      padding: "18px 40px",
-      borderBottom: "1px solid #ddd",
-      fontFamily: "system-ui, sans-serif"
+      padding: "16px 32px",
+      backgroundColor: "#121212",
+      borderBottom: "1px solid #4d4d4d",
+      fontFamily: "system-ui, sans-serif",
     }}>
-        // title
-      <strong>Song2Chord</strong>
+      <strong style={{ color: "#ffffff", fontSize: "18px", fontWeight: 700 }}>
+        Song2Chord
+      </strong>
 
-        // navigation links and sign out button
-      <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
-        <Link href="/search">Search / Upload</Link>
-        <Link href="/library">My Library</Link>
-        <Link href="/settings">Settings</Link>
-        <button onClick={signOut}>Sign out</button>
+      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <Link href="/search" style={navLinkStyle}>Search / Upload</Link>
+        <Link href="/library" style={navLinkStyle}>My Library</Link>
+        <Link href="/settings" style={navLinkStyle}>Settings</Link>
+        <button onClick={signOut} style={signOutStyle}>
+          Sign out
+        </button>
       </div>
     </nav>
   );
 }
+
+const navLinkStyle: React.CSSProperties = {
+  color: "#b3b3b3",
+  textDecoration: "none",
+  fontSize: "14px",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "1.4px",
+  padding: "8px 16px",
+  borderRadius: "9999px",
+};
+
+const signOutStyle: React.CSSProperties = {
+  color: "#ffffff",
+  backgroundColor: "transparent",
+  border: "1px solid #7c7c7c",
+  borderRadius: "9999px",
+  padding: "8px 16px",
+  fontSize: "14px",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "1.4px",
+  cursor: "pointer",
+};
