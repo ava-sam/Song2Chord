@@ -72,7 +72,8 @@ export default function LibraryPage() {
       return;
     }
     const supabase = createClient();
-    await supabase.from("songs").update({ filename: trimmed }).eq("id", song.id);
+    const { error } = await supabase.from("songs").update({ filename: trimmed }).eq("id", song.id);
+    if (error) { alert(`Rename failed: ${error.message}`); return; }
     setSongs((prev) => prev.map((s) => s.id === song.id ? { ...s, filename: trimmed } : s));
     setEditingId(null);
   }
@@ -85,7 +86,8 @@ export default function LibraryPage() {
     e.stopPropagation();
     if (!confirm(`Delete "${song.filename}"?`)) return;
     const supabase = createClient();
-    await supabase.from("songs").delete().eq("id", song.id);
+    const { error } = await supabase.from("songs").delete().eq("id", song.id);
+    if (error) { alert(`Delete failed: ${error.message}`); return; }
     setSongs((prev) => prev.filter((s) => s.id !== song.id));
     if (expanded === song.id) setExpanded(null);
   }
