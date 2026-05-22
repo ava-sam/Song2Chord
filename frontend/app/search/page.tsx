@@ -60,7 +60,11 @@ export default function SearchPage() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const activeRowRef = useRef<HTMLTableRowElement>(null);
+
+  const activeIdx = result ? getActiveIndex(result.chords, currentTime) : -1;
+  const activeChord = activeIdx >= 0 ? result!.chords[activeIdx].chord : null;
+  const activePosition = activeChord ? lookupChordPosition(activeChord) : null;
+  const ready = !!file && !loading;
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files?.[0] ?? null;
@@ -76,11 +80,6 @@ export default function SearchPage() {
     return () => { if (audioUrl) URL.revokeObjectURL(audioUrl); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Scroll active chord row into view
-  useEffect(() => {
-    activeRowRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [currentTime]);
 
   async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
@@ -133,11 +132,6 @@ export default function SearchPage() {
   const uniqueChords = result
     ? [...new Set(result.chords.map((e) => e.chord).filter((c) => c !== "Unknown"))]
     : [];
-
-  const activeIdx = result ? getActiveIndex(result.chords, currentTime) : -1;
-  const activeChord = activeIdx >= 0 ? result!.chords[activeIdx].chord : null;
-  const activePosition = activeChord ? lookupChordPosition(activeChord) : null;
-  const ready = !!file && !loading;
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#121212", fontFamily: "system-ui, sans-serif" }}>
@@ -320,7 +314,6 @@ export default function SearchPage() {
                       return (
                         <tr
                           key={i}
-                          ref={isActive ? activeRowRef : null}
                           style={{
                             backgroundColor: isActive ? "#1f3d29" : i % 2 === 0 ? "#181818" : "#1f1f1f",
                             transition: "background-color 0.2s",
