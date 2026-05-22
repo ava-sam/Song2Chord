@@ -81,6 +81,15 @@ export default function LibraryPage() {
     setEditingId(null);
   }
 
+  async function deleteSong(song: Song, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm(`Delete "${song.filename}"?`)) return;
+    const supabase = createClient();
+    await supabase.from("songs").delete().eq("id", song.id);
+    setSongs((prev) => prev.filter((s) => s.id !== song.id));
+    if (expanded === song.id) setExpanded(null);
+  }
+
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#121212", fontFamily: "system-ui, sans-serif" }}>
       <NavBar />
@@ -182,7 +191,24 @@ export default function LibraryPage() {
                       {date} · {uniqueChords.length} unique chords
                     </p>
                   </div>
-                  <span style={{ color: "#b3b3b3", fontSize: "18px" }}>{isOpen ? "▲" : "▼"}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
+                    <button
+                      onClick={(e) => deleteSong(song, e)}
+                      title="Delete"
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "4px",
+                        color: "#4d4d4d",
+                        fontSize: "15px",
+                        lineHeight: 1,
+                      }}
+                    >
+                      🗑️
+                    </button>
+                    <span style={{ color: "#b3b3b3", fontSize: "18px" }}>{isOpen ? "▲" : "▼"}</span>
+                  </div>
                 </button>
 
                 {isOpen && (
