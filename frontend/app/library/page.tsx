@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import NavBar from "../../components/navBar";
 import { createClient } from "../../lib/supabase/client";
@@ -13,7 +13,7 @@ const ChordDiagram = dynamic(
 );
 
 type ChordEntry = { time: number; chord: string };
-type Song = { id: string; filename: string; chords: ChordEntry[]; created_at: string };
+type Song = { id: string; filename: string; chords: ChordEntry[]; created_at: string; storage_path?: string };
 type ChordData = { frets: number[]; fingers: number[]; baseFret: number; barres: number[] };
 
 const GUITAR_INSTRUMENT = {
@@ -46,6 +46,9 @@ export default function LibraryPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [audioUrls, setAudioUrls] = useState<Record<string, string>>({});
+  const [currentTimes, setCurrentTimes] = useState<Record<string, number>>({});
+  const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
 
   useEffect(() => {
     const supabase = createClient();
@@ -80,6 +83,24 @@ export default function LibraryPage() {
 
   function cancelEdit() {
     setEditingId(null);
+  }
+
+  async function loadAudio(song: Song) {
+    if (!song.storage_path || audioUrls[song.id]) return;
+    const supabase = createClient();
+    const { data } = await supabase.storage
+      .from("audio-uploads")
+      .createSignedUrl(song.storage_path, 3600);
+    if (data?.signedUrl) setAudioUrls((prev) => ({ ...prev, [song.id]: data.signedUrl }));
+  }
+
+  function getActiveIndex(chords: ChordEntry[], time: number) {
+    let idx = -1;
+    for (let i = 0; i < chords.length; i++) {
+      if (chords[i].time <= time) idx = i;
+      else break;
+    }
+    return idx;
   }
 
   async function deleteSong(song: Song, e: React.MouseEvent) {
@@ -128,7 +149,7 @@ export default function LibraryPage() {
               }}>
                 {/* Header row */}
                 <button
-                  onClick={() => setExpanded(isOpen ? null : song.id)}
+                  onClick={() => { const next = isOpen ? null : song.id; setExpanded(next); if (next) loadAudio(song); }}
                   style={{
                     width: "100%",
                     display: "flex",
@@ -215,6 +236,17 @@ export default function LibraryPage() {
 
                 {isOpen && (
                   <div style={{ padding: "0 20px 20px" }}>
+                    {/* Audio player */}
+                    {audioUrls[song.id] && (
+                      <audio
+                        ref={(el) => { audioRefs.current[song.id] = el; }}
+                        src={audioUrls[song.id]}
+                        controls
+                        onTimeUpdate={(e) => setCurrentTimes((prev) => ({ ...prev, [song.id]: e.currentTarget.currentTime }))}
+                        style={{ width: "100%", marginBottom: "20px", borderRadius: "9999px", accentColor: "#1ed760" }}
+                      />
+                    )}
+
                     {/* Chord diagrams */}
                     <div style={{
                       display: "grid",
@@ -247,24 +279,35 @@ export default function LibraryPage() {
                     </div>
 
                     {/* Chord timeline */}
-                    <div style={{ backgroundColor: "#121212", borderRadius: "6px", overflow: "hidden", maxHeight: "240px", overflowY: "auto" }}>
-                      <table style={{ borderCollapse: "collapse", width: "100%" }}>
-                        <thead style={{ position: "sticky", top: 0 }}>
-                          <tr style={{ backgroundColor: "#1f1f1f" }}>
-                            <th style={thStyle}>Time (s)</th>
-                            <th style={thStyle}>Chord</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {song.chords.map((entry, i) => (
-                            <tr key={i} style={{ backgroundColor: i % 2 === 0 ? "#181818" : "#1f1f1f" }}>
-                              <td style={tdStyle}>{entry.time}</td>
-                              <td style={{ ...tdStyle, color: "#1ed760", fontWeight: 600 }}>{entry.chord}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    {(() => {
+                      const activeIdx = getActiveIndex(song.chords, currentTimes[song.id] ?? 0);
+                      return (
+                        <div style={{ backgroundColor: "#121212", borderRadius: "6px", overflow: "hidden", maxHeight: "240px", overflowY: "auto" }}>
+                          <table style={{ borderCollapse: "collapse", width: "100%" }}>
+                            <thead style={{ position: "sticky", top: 0 }}>
+                              <tr style={{ backgroundColor: "#1f1f1f" }}>
+                                <th style={thStyle}>Time (s)</th>
+                                <th style={thStyle}>Chord</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {song.chords.map((entry, i) => {
+                                const isActive = i === activeIdx;
+                                return (
+                                  <tr key={i} style={{
+                                    backgroundColor: isActive ? "#1f3d29" : i % 2 === 0 ? "#181818" : "#1f1f1f",
+                                    transition: "background-color 0.2s",
+                                  }}>
+                                    <td style={tdStyle}>{entry.time}</td>
+                                    <td style={{ ...tdStyle, color: isActive ? "#1ed760" : "#1ed760", fontWeight: isActive ? 700 : 600 }}>{entry.chord}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

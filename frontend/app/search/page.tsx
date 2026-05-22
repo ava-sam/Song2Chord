@@ -120,6 +120,7 @@ export default function SearchPage() {
           user_id: user.id,
           filename: data.filename,
           chords: data.chords,
+          storage_path: path,
         });
       }
     } catch (err) {
