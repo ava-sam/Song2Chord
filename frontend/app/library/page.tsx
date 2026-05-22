@@ -14,6 +14,7 @@ const ChordDiagram = dynamic(
 
 type ChordEntry = { time: number; chord: string };
 type Song = { id: string; filename: string; chords: ChordEntry[]; created_at: string };
+type ChordData = { frets: number[]; fingers: number[]; baseFret: number; barres: number[] };
 
 const GUITAR_INSTRUMENT = {
   strings: 6,
@@ -34,7 +35,7 @@ function lookupChordPosition(chordName: string) {
   if (spaceIdx === -1) return null;
   const key = NOTE_MAP[chordName.slice(0, spaceIdx)];
   if (!key) return null;
-  const entries: { suffix: string; positions: unknown[] }[] = guitarDb.chords[key];
+  const entries: { suffix: string; positions: ChordData[] }[] = guitarDb.chords[key];
   const entry = entries?.find((c) => c.suffix === chordName.slice(spaceIdx + 1));
   return entry?.positions?.[0] ?? null;
 }
