@@ -44,6 +44,8 @@ export default function LibraryPage() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
 
   useEffect(() => {
     const supabase = createClient();
@@ -56,6 +58,28 @@ export default function LibraryPage() {
         setLoading(false);
       });
   }, []);
+
+  function startEditing(song: Song, e: React.MouseEvent) {
+    e.stopPropagation();
+    setEditingId(song.id);
+    setEditValue(song.filename);
+  }
+
+  async function commitRename(song: Song) {
+    const trimmed = editValue.trim();
+    if (!trimmed || trimmed === song.filename) {
+      setEditingId(null);
+      return;
+    }
+    const supabase = createClient();
+    await supabase.from("songs").update({ filename: trimmed }).eq("id", song.id);
+    setSongs((prev) => prev.map((s) => s.id === song.id ? { ...s, filename: trimmed } : s));
+    setEditingId(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+  }
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#121212", fontFamily: "system-ui, sans-serif" }}>
@@ -106,10 +130,54 @@ export default function LibraryPage() {
                     textAlign: "left",
                   }}
                 >
-                  <div>
-                    <p style={{ color: "#ffffff", fontWeight: 600, fontSize: "15px", marginBottom: "4px" }}>
-                      {song.filename}
-                    </p>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {editingId === song.id ? (
+                      <input
+                        autoFocus
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={() => commitRename(song)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitRename(song);
+                          if (e.key === "Escape") cancelEdit();
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          borderBottom: "1px solid #1ed760",
+                          color: "#ffffff",
+                          fontWeight: 600,
+                          fontSize: "15px",
+                          outline: "none",
+                          width: "100%",
+                          marginBottom: "4px",
+                          padding: "0",
+                        }}
+                      />
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                        <p style={{ color: "#ffffff", fontWeight: 600, fontSize: "15px", margin: 0 }}>
+                          {song.filename}
+                        </p>
+                        <button
+                          onClick={(e) => startEditing(song, e)}
+                          title="Rename"
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            padding: "2px",
+                            color: "#4d4d4d",
+                            fontSize: "13px",
+                            lineHeight: 1,
+                            flexShrink: 0,
+                          }}
+                        >
+                          ✏️
+                        </button>
+                      </div>
+                    )}
                     <p style={{ color: "#b3b3b3", fontSize: "12px" }}>
                       {date} · {uniqueChords.length} unique chords
                     </p>
