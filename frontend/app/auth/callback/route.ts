@@ -1,9 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(request: Request) {
-  const requestUrl = new URL(request.url);
-  const code = requestUrl.searchParams.get("code");
+export async function GET(request: NextRequest) {
+  const code = request.nextUrl.searchParams.get("code");
   const redirectTo = NextResponse.redirect(new URL("/search", request.url));
 
   if (code) {
@@ -13,7 +12,7 @@ export async function GET(request: Request) {
       {
         cookies: {
           get(name: string) {
-            return request.headers.get("cookie")?.match(new RegExp(`(?:^|; )${name}=([^;]*)`))?.[1];
+            return request.cookies.get(name)?.value;
           },
           set(name: string, value: string, options: any) {
             redirectTo.cookies.set({ name, value, ...options });
