@@ -170,14 +170,14 @@ async def analyze_chords(file: UploadFile = File(...)):
 
     try:
 
-        # Load audio using librosa
-        y, sr = librosa.load(temp_path, sr=None)
+        # Load audio using librosa — downsample to 22050 Hz to cap memory usage
+        y, sr = librosa.load(temp_path, sr=22050)
 
         # Detect beat frames
         tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
 
-        # Extract chroma features
-        chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
+        # chroma_stft is much lighter than chroma_cqt on memory
+        chroma = librosa.feature.chroma_stft(y=y, sr=sr)
 
         # Fallback if beat tracking fails
         if len(beat_frames) < 2:
