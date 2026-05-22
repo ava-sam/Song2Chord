@@ -16,9 +16,14 @@ load_dotenv()
 app = FastAPI()
 
 # allow frontend to make requests to this backend
+_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+_vercel_url = os.getenv("FRONTEND_URL")
+if _vercel_url:
+    _origins.append(_vercel_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

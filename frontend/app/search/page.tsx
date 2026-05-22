@@ -103,7 +103,7 @@ export default function SearchPage() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch("http://127.0.0.1:8000/analyze-chords", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/analyze-chords`, {
         method: "POST",
         body: formData,
       });
