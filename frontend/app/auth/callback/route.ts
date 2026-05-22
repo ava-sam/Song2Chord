@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
-  const code = request.nextUrl.searchParams.get("code");
+  const code = new URL(request.url).searchParams.get("code");
   const redirectTo = NextResponse.redirect(new URL("/search", request.url));
 
   if (code) {
